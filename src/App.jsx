@@ -19,6 +19,19 @@ export default function App() {
   const [resultUrl, setResultUrl] = useState(null)
   const [error, setError] = useState(null)
 
+  // Feature 2: video trim
+  const [videoStart, setVideoStart] = useState(26)
+  const [videoEnd, setVideoEnd] = useState(33)
+
+  // Feature 3: audio trim
+  const [audioDuration, setAudioDuration] = useState(null)
+  const [audioStart, setAudioStart] = useState(0)
+  const [audioEnd, setAudioEnd] = useState(null)
+  const [audioTrimConfirmed, setAudioTrimConfirmed] = useState(false)
+
+  // Feature 4: export format
+  const [exportFormat, setExportFormat] = useState('horizontal')
+
   useEffect(() => {
     loadFFmpeg()
   }, [])
@@ -56,6 +69,18 @@ export default function App() {
     setAudioName(file.name)
     setResultUrl(null)
     setError(null)
+    setAudioStart(0)
+    setAudioTrimConfirmed(false)
+
+    const tempAudio = new Audio()
+    const objectUrl = URL.createObjectURL(file)
+    tempAudio.src = objectUrl
+    tempAudio.onloadedmetadata = () => {
+      setAudioDuration(tempAudio.duration)
+      setAudioEnd(tempAudio.duration)
+      URL.revokeObjectURL(objectUrl)
+    }
+
     e.target.value = ''
   }
 
@@ -73,16 +98,49 @@ export default function App() {
       await ffmpeg.writeFile('input.mp4', await fetchFile(`${import.meta.env.BASE_URL}jurassic.mp4`))
       await ffmpeg.writeFile('useraudio', await fetchFile(audioFile))
 
+      const relMuteStart = Math.max(0, ROAR_START - videoStart)
+      const relMuteEnd = Math.min(ROAR_END - videoStart, videoEnd - videoStart)
+      const relDelay = Math.round(Math.max(0, (ROAR_START - videoStart) * 1000))
+
+      const effectiveAudioEnd = audioEnd ?? audioDuration
+      const useAudioTrim = audioStart > 0 || (effectiveAudioEnd !== null && audioDuration !== null && effectiveAudioEnd < audioDuration - 0.05)
+
+      const filterParts = []
+
+      // 1. Trim original video
+      filterParts.push(`[0:v]trim=start=${videoStart}:end=${videoEnd},setpts=PTS-STARTPTS[trimv]`)
+
+      // 2. Trim + mute original audio in the output timeline
+      filterParts.push(`[0:a]atrim=start=${videoStart}:end=${videoEnd},asetpts=PTS-STARTPTS,volume=0:enable='between(t,${relMuteStart},${relMuteEnd})'[muted]`)
+
+      // 3. User audio (trim if needed) + delay
+      if (useAudioTrim) {
+        filterParts.push(`[1:a]atrim=start=${audioStart}:end=${effectiveAudioEnd},asetpts=PTS-STARTPTS[ua]`)
+        filterParts.push(`[ua]adelay=${relDelay}|${relDelay}[delayed]`)
+      } else {
+        filterParts.push(`[1:a]adelay=${relDelay}|${relDelay}[delayed]`)
+      }
+
+      // 4. Mix
+      filterParts.push(`[muted][delayed]amix=inputs=2:duration=first:normalize=0[aout]`)
+
+      // 5. Instagram filter (optional)
+      if (exportFormat === 'instagram') {
+        filterParts.push(`[trimv]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black[vout]`)
+      }
+
+      const filterComplex = filterParts.join(';')
+      const videoMap = exportFormat === 'instagram' ? '[vout]' : '[trimv]'
+
       await ffmpeg.exec([
         '-i', 'input.mp4',
         '-i', 'useraudio',
-        '-filter_complex',
-        `[0:a]volume=0:enable='between(t,${ROAR_START},${ROAR_END})'[muted];` +
-        `[1:a]adelay=${Math.round(ROAR_START * 1000)}|${Math.round(ROAR_START * 1000)}[delayed];` +
-        `[muted][delayed]amix=inputs=2:duration=first:normalize=0[aout]`,
-        '-map', '0:v',
+        '-filter_complex', filterComplex,
+        '-map', videoMap,
         '-map', '[aout]',
-        '-c:v', 'copy',
+        '-c:v', 'libx264',
+        '-preset', 'ultrafast',
+        '-c:a', 'aac',
         'output.mp4',
       ])
 
@@ -105,7 +163,8 @@ export default function App() {
     a.click()
   }
 
-  const canGenerate = audioFile && ffmpegReady && !processing
+  const needsTrimConfirm = audioDuration > 9 && !audioTrimConfirmed
+  const canGenerate = audioFile && ffmpegReady && !processing && !needsTrimConfirm
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
@@ -139,9 +198,52 @@ export default function App() {
             controls
             className="w-full rounded-xl border border-zinc-800 shadow-2xl bg-black"
           />
+          {/* Feature 1: YouTube attribution */}
+          <p className="mt-2 text-xs text-zinc-500">
+            Fonte:{' '}
+            <a
+              href="https://www.youtube.com/watch?v=fnY2KL4E8LA"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-zinc-300 transition-colors"
+            >
+              T-Rex Jurassic World
+            </a>
+          </p>
         </section>
 
-        {/* Audio upload */}
+        {/* Feature 2: Video trim */}
+        <section className="w-full">
+          <p className="text-xs text-zinc-500 uppercase tracking-widest mb-2 font-semibold">
+            Trecho do vídeo
+          </p>
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <label className="block text-xs text-zinc-400 mb-1">Início (s)</label>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                value={videoStart}
+                onChange={e => setVideoStart(Number(e.target.value))}
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-lime-500"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs text-zinc-400 mb-1">Fim (s)</label>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                value={videoEnd}
+                onChange={e => setVideoEnd(Number(e.target.value))}
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-lime-500"
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Audio upload + Feature 3: audio trim */}
         <section className="w-full">
           <p className="text-xs text-zinc-500 uppercase tracking-widest mb-2 font-semibold">
             Seu áudio
@@ -164,6 +266,81 @@ export default function App() {
             className="hidden"
             onChange={handleAudioChange}
           />
+
+          {/* Audio trim controls — shown whenever audio is loaded */}
+          {audioFile && audioDuration !== null && (
+            <div className="mt-3">
+              {audioDuration > 9 && (
+                <div className="mb-3 bg-amber-950/60 border border-amber-800 rounded-xl px-4 py-3 text-amber-300 text-sm">
+                  Áudio com mais de 9s — defina o trecho a usar.
+                </div>
+              )}
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="block text-xs text-zinc-400 mb-1">Início do áudio (s)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={audioStart}
+                    onChange={e => {
+                      setAudioStart(Number(e.target.value))
+                      setAudioTrimConfirmed(true)
+                    }}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-lime-500"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs text-zinc-400 mb-1">Fim do áudio (s)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={audioEnd ?? ''}
+                    onChange={e => {
+                      setAudioEnd(Number(e.target.value))
+                      setAudioTrimConfirmed(true)
+                    }}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-lime-500"
+                  />
+                </div>
+              </div>
+              <p className="mt-1 text-xs text-zinc-600">
+                Duração detectada: {audioDuration.toFixed(1)}s
+              </p>
+            </div>
+          )}
+        </section>
+
+        {/* Feature 4: Export format */}
+        <section className="w-full">
+          <p className="text-xs text-zinc-500 uppercase tracking-widest mb-2 font-semibold">
+            Formato de exportação
+          </p>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setExportFormat('horizontal')}
+              className={`flex-1 py-3 rounded-xl border font-semibold text-sm transition-all duration-150 cursor-pointer
+                ${exportFormat === 'horizontal'
+                  ? 'border-lime-500 bg-lime-500/10 text-lime-400'
+                  : 'border-zinc-700 bg-zinc-800/60 text-zinc-400 hover:border-zinc-500'
+                }`}
+            >
+              🖥️ Horizontal
+            </button>
+            <button
+              type="button"
+              onClick={() => setExportFormat('instagram')}
+              className={`flex-1 py-3 rounded-xl border font-semibold text-sm transition-all duration-150 cursor-pointer
+                ${exportFormat === 'instagram'
+                  ? 'border-lime-500 bg-lime-500/10 text-lime-400'
+                  : 'border-zinc-700 bg-zinc-800/60 text-zinc-400 hover:border-zinc-500'
+                }`}
+            >
+              📱 Instagram
+            </button>
+          </div>
         </section>
 
         {/* Generate button */}
