@@ -2,7 +2,7 @@ import { useRef, useState, useEffect } from 'react'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { fetchFile, toBlobURL } from '@ffmpeg/util'
 
-const ROAR_START = 29
+const ROAR_START = 29.3
 const ROAR_END = 36
 
 export default function App() {
@@ -228,7 +228,7 @@ export default function App() {
               <label className="block text-xs text-zinc-400 mb-1">Início (s)</label>
               <input
                 type="number"
-                step="0.1"
+                step="any"
                 min="0"
                 value={videoStart}
                 onChange={e => setVideoStart(Number(e.target.value))}
@@ -239,7 +239,7 @@ export default function App() {
               <label className="block text-xs text-zinc-400 mb-1">Fim (s)</label>
               <input
                 type="number"
-                step="0.1"
+                step="any"
                 min="0"
                 value={videoEnd}
                 onChange={e => setVideoEnd(Number(e.target.value))}
