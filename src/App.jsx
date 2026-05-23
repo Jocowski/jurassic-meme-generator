@@ -327,7 +327,7 @@ export default function App() {
                   : 'border-zinc-700 bg-zinc-800/60 text-zinc-400 hover:border-zinc-500'
                 }`}
             >
-              🖥️ Horizontal
+              🖥️ Horizontal (1920×1080)
             </button>
             <button
               type="button"
@@ -338,7 +338,7 @@ export default function App() {
                   : 'border-zinc-700 bg-zinc-800/60 text-zinc-400 hover:border-zinc-500'
                 }`}
             >
-              📱 Instagram
+              📱 Instagram (1080×1920)
             </button>
           </div>
         </section>
