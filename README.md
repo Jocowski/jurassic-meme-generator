@@ -35,3 +35,13 @@ Acesse `http://localhost:5173/jurassic-meme-generator/`.
 - [React](https://react.dev/) + [Vite](https://vitejs.dev/)
 - [Tailwind CSS](https://tailwindcss.com/)
 - [FFmpeg.wasm](https://github.com/ffmpegwasm/ffmpeg.wasm) — edição de vídeo no navegador
+
+---
+
+## 🎬 Créditos
+
+O vídeo base usado no meme é o **"Jurassic World Ending With Original T-rex Roar 4K"**, disponível no YouTube:
+
+👉 [https://www.youtube.com/watch?v=fnY2KL4E8LA](https://www.youtube.com/watch?v=fnY2KL4E8LA)
+
+Nenhuma modificação foi feita no vídeo original além da substituição do áudio — que é exatamente o ponto do projeto. 😄
