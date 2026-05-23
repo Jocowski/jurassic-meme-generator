@@ -9,11 +9,13 @@ export default function App() {
   const ffmpegRef = useRef(new FFmpeg())
   const fileInputRef = useRef(null)
   const resultRef = useRef(null)
+  const audioUrlRef = useRef(null)
 
   const [ffmpegReady, setFfmpegReady] = useState(false)
   const [ffmpegLoading, setFfmpegLoading] = useState(true)
   const [audioFile, setAudioFile] = useState(null)
   const [audioName, setAudioName] = useState('')
+  const [audioObjectUrl, setAudioObjectUrl] = useState(null)
   const [processing, setProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
   const [resultUrl, setResultUrl] = useState(null)
@@ -65,20 +67,24 @@ export default function App() {
   function handleAudioChange(e) {
     const file = e.target.files[0]
     if (!file) return
+
+    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current)
+    const objectUrl = URL.createObjectURL(file)
+    audioUrlRef.current = objectUrl
+
     setAudioFile(file)
     setAudioName(file.name)
+    setAudioObjectUrl(objectUrl)
     setResultUrl(null)
     setError(null)
     setAudioStart(0)
     setAudioTrimConfirmed(false)
 
     const tempAudio = new Audio()
-    const objectUrl = URL.createObjectURL(file)
     tempAudio.src = objectUrl
     tempAudio.onloadedmetadata = () => {
       setAudioDuration(tempAudio.duration)
       setAudioEnd(tempAudio.duration)
-      URL.revokeObjectURL(objectUrl)
     }
 
     e.target.value = ''
@@ -266,6 +272,15 @@ export default function App() {
             className="hidden"
             onChange={handleAudioChange}
           />
+
+          {/* Audio player */}
+          {audioObjectUrl && (
+            <audio
+              controls
+              src={audioObjectUrl}
+              className="w-full mt-3 rounded-lg"
+            />
+          )}
 
           {/* Audio trim controls — shown whenever audio is loaded */}
           {audioFile && audioDuration !== null && (
